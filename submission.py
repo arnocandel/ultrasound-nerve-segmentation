@@ -16,7 +16,8 @@ def run_length_enc(label):
     from itertools import chain
     x = label.transpose().flatten()
     y = np.where(x > 0)[0]
-    if len(y) < 10:  # consider as empty
+    #print (len(y))
+    if len(y) < 3500:  # consider as empty
         return ''
     z = np.where(np.diff(y) > 1)[0]
     start = np.insert(y[z+1], 0, y[0])
@@ -49,6 +50,11 @@ def submission():
 
         if i % 100 == 0:
             print('{}/{}'.format(i, total))
+    count=0
+    for i in range(total):
+        if (len(rles[i])==0):
+            count = count+1
+    print ((1.0*count)/total)
 
     first_row = 'img,pixels'
     file_name = 'submission.csv'
