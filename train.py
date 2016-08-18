@@ -30,6 +30,13 @@ def dice_coef(y_true, y_pred):
     intersection = K.sum(y_true_f * y_pred_f)
     return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
 
+def _dice_coef(y_true, y_pred):
+    y_true_f = K.batch_flatten(y_true)
+    y_pred_f = K.batch_flatten(y_pred)
+    intersection = 2. * K.sum(y_true_f * y_pred_f, axis=1, keepdims=True) + smooth
+    union = K.sum(y_true_f, axis=1, keepdims=True) + K.sum(y_pred_f, axis=1, keepdims=True) + smooth
+    return K.mean(intersection / union)
+
 
 def dice_coef_loss(y_true, y_pred):
     return -dice_coef(y_true, y_pred)
@@ -173,6 +180,9 @@ def run_cross_validation(nfolds=5):
         predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
         for i in range(len(valid_index)):
             yfull_train[valid_index[i]] = predictions_valid[i]
+        np.save('imgs_mask_train.pred.fold' + str(num_fold) + '.npy', predictions_valid)
+        np.save('imgs_mask_train.image.fold' + str(num_fold) + '.npy', X_valid)
+        np.save('imgs_mask_train.actual.fold' + str(num_fold) + '.npy', Y_valid)
 
         # Store test predictions
         test_prediction = model.predict(imgs_test, batch_size=batch_size, verbose=2)
@@ -237,5 +247,5 @@ def merge_several_folds_mean(data, nfolds):
 
 
 if __name__ == '__main__':
-    #run_cross_validation(folds)
-    run_main_model()
+    run_cross_validation(folds)
+    #run_main_model()
