@@ -14,9 +14,9 @@ from keras import backend as K
 
 from data import load_train_data, load_test_data
 
-img_rows = 64
-img_cols = 80
-batch_size = 16
+img_rows = 64 #160
+img_cols = 80 #200
+batch_size = 32
 epochs = 20
 folds = 3
 
@@ -118,10 +118,10 @@ def run_cross_validation(nfolds=5):
     kf = KFold(len(train_data), n_folds=nfolds,  shuffle=True, random_state=random_state)
     num_fold = 0
     sum_score = 0
-    for train_index, test_index in kf:
+    for train_index, valid_index in kf:
 
-        X_train, X_valid = train_data[train_index], train_data[test_index]
-        Y_train, Y_valid = train_target[train_index], train_target[test_index]
+        X_train, X_valid = train_data[train_index], train_data[valid_index]
+        Y_train, Y_valid = train_target[train_index], train_target[valid_index]
 
         num_fold += 1
 
@@ -146,13 +146,17 @@ def run_cross_validation(nfolds=5):
               shuffle=True, verbose=2, validation_data=(X_valid, Y_valid),
               callbacks=callbacks)
 
+        print('-'*30)
+        print('Making predictions...')
+        print('-'*30)
+
         ## Load best model
         model.load_weights('unet.' + str(num_fold) + '.hdf5')
 
         # Store valid predictions
         predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
-        for i in range(len(test_index)):
-            yfull_train[test_index[i]] = predictions_valid[i]
+        for i in range(len(valid_index)):
+            yfull_train[valid_index[i]] = predictions_valid[i]
 
         # Store test predictions
         test_prediction = model.predict(imgs_test, batch_size=batch_size, verbose=2)
@@ -165,6 +169,7 @@ def run_cross_validation(nfolds=5):
 
     test_res = merge_several_folds_mean(yfull_test, nfolds)
     np.save('imgs_mask_test.npy', test_res)
+    #np.save('imgs_mask_train_cv.npy', yfull_train)
 
 def merge_several_folds_mean(data, nfolds):
     a = np.array(data[0])
