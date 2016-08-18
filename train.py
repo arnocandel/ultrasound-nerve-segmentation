@@ -17,8 +17,8 @@ from data import load_train_data, load_test_data
 img_rows = 64 #160
 img_cols = 80 #200
 batch_size = 32
-epochs = 20
-folds = 3
+epochs = 50
+folds = 5
 
 smooth = 1.
 
@@ -75,7 +75,7 @@ def get_unet():
 
     model = Model(input=inputs, output=conv10)
 
-    model.compile(optimizer=Adam(lr=5e-5), loss=dice_coef_loss, metrics=[dice_coef])
+    model.compile(optimizer=Adam(lr=1e-5), loss=dice_coef_loss, metrics=[dice_coef])
 
     return model
 
@@ -171,6 +171,49 @@ def run_cross_validation(nfolds=5):
     np.save('imgs_mask_test.npy', test_res)
     #np.save('imgs_mask_train_cv.npy', yfull_train)
 
+def run_main_model():
+    print('-'*30)
+    print('Loading and preprocessing train data...')
+    print('-'*30)
+    train_data, train_target = load_train_data()
+    train_data, train_target, mean, std = stan(preprocess(train_data), preprocess(train_target))
+
+    imgs_test, imgs_id_test = load_test_data()
+    imgs_test = stan(preprocess(imgs_test), None, mean, std)
+
+    X_train, X_valid = train_data, train_data
+    Y_train, Y_valid = train_target, train_target
+
+
+    print('Main Model')
+    print('Len train: ', len(X_train), len(Y_train))
+    print('Len valid: ', len(X_valid), len(Y_valid))
+
+    callbacks = [
+        ModelCheckpoint('unet.hdf5', monitor='loss', save_best_only=True)
+    ]
+
+    print('-'*30)
+    print('Creating and compiling model...')
+    print('-'*30)
+    model = get_unet()
+
+    # If existing model -> load it
+    #model.load_weights('unet.hdf5')
+
+    print('-'*30)
+    print('Fitting model...')
+    print('-'*30)
+    model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=epochs,
+        shuffle=True, verbose=2, callbacks=callbacks)
+
+    ## Load best model
+    model.load_weights('unet.hdf5')
+
+    test_prediction = model.predict(imgs_test, verbose=2)
+    np.save('imgs_mask_test.npy', test_prediction)
+
+
 def merge_several_folds_mean(data, nfolds):
     a = np.array(data[0])
     for i in range(1, nfolds):
@@ -181,3 +224,4 @@ def merge_several_folds_mean(data, nfolds):
 
 if __name__ == '__main__':
     run_cross_validation(folds)
+    #run_main_model()
