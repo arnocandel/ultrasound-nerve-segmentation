@@ -7,8 +7,8 @@ from data import image_cols, image_rows
 
 def prep(img):
     img = img.astype('float32')
-    img = cv2.threshold(img, 0.5, 1., cv2.THRESH_BINARY)[1].astype(np.uint8)
-    img = cv2.resize(img, (image_cols, image_rows))
+    img = cv2.threshold(img, 0.7, 1., cv2.THRESH_BINARY)[1].astype(np.uint8)
+    img = cv2.resize(img, (image_cols, image_rows), interpolation=cv2.INTER_CUBIC)
     return img
 
 
@@ -17,7 +17,7 @@ def run_length_enc(label):
     x = label.transpose().flatten()
     y = np.where(x > 0)[0]
     #print (len(y))
-    if len(y) < 4500:  # consider as empty
+    if len(y) < 1:  # consider as empty
         return ''
     z = np.where(np.diff(y) > 1)[0]
     start = np.insert(y[z+1], 0, y[0])
