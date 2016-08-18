@@ -17,7 +17,7 @@ from data import load_train_data, load_test_data
 
 img_rows = 64
 img_cols = 80
-batch_size = 64
+batch_size = 32
 epochs = 20
 folds = 10
 smooth = 1.
@@ -237,5 +237,5 @@ def merge_several_folds_mean(data, nfolds):
 
 
 if __name__ == '__main__':
-    run_cross_validation(folds)
-    #run_main_model()
+    #run_cross_validation(folds)
+    run_main_model()
