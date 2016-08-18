@@ -4,7 +4,7 @@ import cv2
 import numpy as np
 from sklearn.cross_validation import KFold
 from keras.models import Model
-from keras.layers import Input, merge, Convolution2D, MaxPooling2D, UpSampling2D
+from keras.layers import Input, merge, Convolution2D, MaxPooling2D, UpSampling2D, Dropout
 from keras.optimizers import Adam
 from keras.optimizers import Adadelta
 from keras.callbacks import EarlyStopping
@@ -39,18 +39,22 @@ def get_unet():
     conv1 = Convolution2D(32, 3, 3, activation='relu', border_mode='same', init='he_normal')(inputs)
     conv1 = Convolution2D(32, 3, 3, activation='relu', border_mode='same', init='he_normal')(conv1)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
+    d1 = Dropout(0.05)(pool1)
 
     conv2 = Convolution2D(64, 3, 3, activation='relu', border_mode='same', init='he_normal')(pool1)
     conv2 = Convolution2D(64, 3, 3, activation='relu', border_mode='same', init='he_normal')(conv2)
     pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
+    d2 = Dropout(0.05)(pool2)
 
     conv3 = Convolution2D(128, 3, 3, activation='relu', border_mode='same', init='he_normal')(pool2)
     conv3 = Convolution2D(128, 3, 3, activation='relu', border_mode='same', init='he_normal')(conv3)
     pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
+    d3 = Dropout(0.05)(pool3)
 
     conv4 = Convolution2D(256, 3, 3, activation='relu', border_mode='same', init='he_normal')(pool3)
     conv4 = Convolution2D(256, 3, 3, activation='relu', border_mode='same', init='he_normal')(conv4)
     pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
+    d4 = Dropout(0.05)(pool4)
 
     conv5 = Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal')(pool4)
     conv5 = Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal')(conv5)
