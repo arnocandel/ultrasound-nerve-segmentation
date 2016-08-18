@@ -2,16 +2,23 @@ from __future__ import print_function
 
 import cv2
 import numpy as np
+from sklearn.cross_validation import KFold
 from keras.models import Model
 from keras.layers import Input, merge, Convolution2D, MaxPooling2D, UpSampling2D
 from keras.optimizers import Adam
+from keras.optimizers import Adadelta
+from keras.callbacks import EarlyStopping
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler
+from keras.utils import np_utils
 from keras import backend as K
 
 from data import load_train_data, load_test_data
 
 img_rows = 64
 img_cols = 80
+batch_size = 16
+epochs = 20
+folds = 3
 
 smooth = 1.
 
@@ -68,7 +75,7 @@ def get_unet():
 
     model = Model(input=inputs, output=conv10)
 
-    model.compile(optimizer=Adam(lr=1e-4), loss=dice_coef_loss, metrics=[dice_coef])
+    model.compile(optimizer=Adam(lr=1e-3), loss=dice_coef_loss, metrics=[dice_coef])
 
     return model
 
@@ -79,59 +86,93 @@ def preprocess(imgs):
         imgs_p[i, 0] = cv2.resize(imgs[i, 0], (img_cols, img_rows), interpolation=cv2.INTER_CUBIC)
     return imgs_p
 
+def stan(X, Y=None, mean=None, std=None):
+    X = X.astype('float32')
+    if mean is None:
+        mean = np.mean(X)  # mean for data centering
+    if std is None:
+        std = np.std(X)  # std for data normalization
+    X-= mean
+    X/= std
+    if Y is not None:
+        Y= Y.astype('float32')
+        Y/= 255.  # scale masks to [0, 1]
+        return X,Y,mean,std
+    else:
+        return X
 
-def train_and_predict():
+
+def run_cross_validation(nfolds=5):
+    random_state = 51
     print('-'*30)
     print('Loading and preprocessing train data...')
     print('-'*30)
-    imgs_train, imgs_mask_train = load_train_data()
+    train_data, train_target = load_train_data()
+    train_data, train_target, mean, std = stan(preprocess(train_data), preprocess(train_target))
 
-    imgs_train = preprocess(imgs_train)
-    imgs_mask_train = preprocess(imgs_mask_train)
-
-    imgs_train = imgs_train.astype('float32')
-    mean = np.mean(imgs_train)  # mean for data centering
-    std = np.std(imgs_train)  # std for data normalization
-
-    imgs_train -= mean
-    imgs_train /= std
-
-    imgs_mask_train = imgs_mask_train.astype('float32')
-    imgs_mask_train /= 255.  # scale masks to [0, 1]
-
-    print('-'*30)
-    print('Creating and compiling model...')
-    print('-'*30)
-    model = get_unet()
-    model_checkpoint = ModelCheckpoint('unet.hdf5', monitor='loss', save_best_only=True)
-
-    print('-'*30)
-    print('Fitting model...')
-    print('-'*30)
-    model.fit(imgs_train, imgs_mask_train, batch_size=32, nb_epoch=20, verbose=1, shuffle=True,
-              callbacks=[model_checkpoint])
-
-    print('-'*30)
-    print('Loading and preprocessing test data...')
-    print('-'*30)
     imgs_test, imgs_id_test = load_test_data()
-    imgs_test = preprocess(imgs_test)
+    imgs_test = stan(preprocess(imgs_test), None, mean, std)
 
-    imgs_test = imgs_test.astype('float32')
-    imgs_test -= mean
-    imgs_test /= std
+    yfull_train = dict()
+    yfull_test = []
+    kf = KFold(len(train_data), n_folds=nfolds,  shuffle=True, random_state=random_state)
+    num_fold = 0
+    sum_score = 0
+    for train_index, test_index in kf:
 
-    print('-'*30)
-    print('Loading saved weights...')
-    print('-'*30)
-    model.load_weights('unet.hdf5')
+        X_train, X_valid = train_data[train_index], train_data[test_index]
+        Y_train, Y_valid = train_target[train_index], train_target[test_index]
 
-    print('-'*30)
-    print('Predicting masks on test data...')
-    print('-'*30)
-    imgs_mask_test = model.predict(imgs_test, verbose=1)
-    np.save('imgs_mask_test.npy', imgs_mask_test)
+        num_fold += 1
+
+        print('Start KFold number {} from {}'.format(num_fold, nfolds))
+        print('Split train: ', len(X_train), len(Y_train))
+        print('Split valid: ', len(X_valid), len(Y_valid))
+
+        callbacks = [
+            EarlyStopping(monitor='val_loss', patience=10, verbose=0),
+            ModelCheckpoint('unet.' + str(num_fold) + '.hdf5', monitor='loss', save_best_only=True)
+        ]
+
+        print('-'*30)
+        print('Creating and compiling model...')
+        print('-'*30)
+        model = get_unet()
+
+        print('-'*30)
+        print('Fitting model...')
+        print('-'*30)
+        model.fit(X_train, Y_train, batch_size=batch_size, nb_epoch=epochs,
+              shuffle=True, verbose=2, validation_data=(X_valid, Y_valid),
+              callbacks=callbacks)
+
+        ## Load best model
+        model.load_weights('unet.' + str(num_fold) + '.hdf5')
+
+        # Store valid predictions
+        predictions_valid = model.predict(X_valid, batch_size=batch_size, verbose=1)
+        for i in range(len(test_index)):
+            yfull_train[test_index[i]] = predictions_valid[i]
+
+        # Store test predictions
+        test_prediction = model.predict(imgs_test, batch_size=batch_size, verbose=2)
+        yfull_test.append(test_prediction)
+
+        print('-'*30)
+        print('Predicting masks on test data...')
+        print('-'*30)
+        np.save('imgs_mask_test.fold' + str(num_fold) + '.npy', test_prediction)
+
+    test_res = merge_several_folds_mean(yfull_test, nfolds)
+    np.save('imgs_mask_test.npy', test_res)
+
+def merge_several_folds_mean(data, nfolds):
+    a = np.array(data[0])
+    for i in range(1, nfolds):
+        a += np.array(data[i])
+    a /= nfolds
+    return a.tolist()
 
 
 if __name__ == '__main__':
-    train_and_predict()
+    run_cross_validation(folds)

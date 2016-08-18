@@ -17,7 +17,7 @@ def run_length_enc(label):
     x = label.transpose().flatten()
     y = np.where(x > 0)[0]
     #print (len(y))
-    if len(y) < 3500:  # consider as empty
+    if len(y) < 4500:  # consider as empty
         return ''
     z = np.where(np.diff(y) > 1)[0]
     start = np.insert(y[z+1], 0, y[0])
