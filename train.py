@@ -2,7 +2,7 @@ from __future__ import print_function
 
 import cv2
 import numpy as np
-from sklearn.cross_validation import KFold
+from sklearn.cross_validation import KFold, LabelKFold
 from keras.models import Model
 from keras.layers import Input, merge, Convolution2D, MaxPooling2D, UpSampling2D, Dropout
 from keras.optimizers import Adam
@@ -15,11 +15,11 @@ from keras import backend as K
 
 from data import load_train_data, load_test_data
 
-img_rows = 64*2
-img_cols = 80*2
-batch_size = 32
-epochs = 100
-folds = 5
+img_rows = 64
+img_cols = 80
+batch_size = 64
+epochs = 20
+folds = 10
 smooth = 1.
 dropout = 0.
 
@@ -80,7 +80,7 @@ def get_unet():
 
     model = Model(input=inputs, output=conv10)
 
-    model.compile(optimizer=sgd(lr=1e-5,momentum=0.95), loss=dice_coef_loss, metrics=[dice_coef])
+    model.compile(optimizer=Adam(lr=1e-4), loss=dice_coef_loss, metrics=[dice_coef])
 
     return model
 
@@ -109,6 +109,7 @@ def stan(X, Y=None, mean=None, std=None):
 
 def run_cross_validation(nfolds=5):
     random_state = 51
+
     print('-'*30)
     print('Loading and preprocessing train data...')
     print('-'*30)
@@ -118,9 +119,19 @@ def run_cross_validation(nfolds=5):
     imgs_test, imgs_id_test = load_test_data()
     imgs_test = stan(preprocess(imgs_test), None, mean, std)
 
+    print('-'*30)
+    print('Data augmentation-aware CV...')
+    print('-'*30)
+    foldcolumn = np.zeros(train_data.shape[0])
+    for i in range(foldcolumn.shape[0]/3):
+        foldcolumn[3*i+0]=i
+        foldcolumn[3*i+1]=i
+        foldcolumn[3*i+2]=i
+    print(foldcolumn[0:20])
+
     yfull_train = dict()
     yfull_test = []
-    kf = KFold(len(train_data), n_folds=nfolds,  shuffle=True, random_state=random_state)
+    kf = LabelKFold(foldcolumn, n_folds=nfolds)
     num_fold = 0
     sum_score = 0
     for train_index, valid_index in kf:
@@ -186,13 +197,11 @@ def run_main_model():
     imgs_test, imgs_id_test = load_test_data()
     imgs_test = stan(preprocess(imgs_test), None, mean, std)
 
-    X_train, X_valid = train_data, train_data
-    Y_train, Y_valid = train_target, train_target
-
+    X_train = train_data
+    Y_train = train_target
 
     print('Main Model')
     print('Len train: ', len(X_train), len(Y_train))
-    print('Len valid: ', len(X_valid), len(Y_valid))
 
     callbacks = [
         ModelCheckpoint('unet.hdf5', monitor='loss', save_best_only=True)
