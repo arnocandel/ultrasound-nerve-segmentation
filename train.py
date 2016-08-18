@@ -7,6 +7,7 @@ from keras.models import Model
 from keras.layers import Input, merge, Convolution2D, MaxPooling2D, UpSampling2D, Dropout
 from keras.optimizers import Adam
 from keras.optimizers import Adadelta
+from keras.optimizers import sgd
 from keras.callbacks import EarlyStopping
 from keras.callbacks import ModelCheckpoint, LearningRateScheduler
 from keras.utils import np_utils
@@ -14,12 +15,13 @@ from keras import backend as K
 
 from data import load_train_data, load_test_data
 
-img_rows = 64*1
-img_cols = 80*1
-batch_size = 64
-epochs = 20
+img_rows = 64*2
+img_cols = 80*2
+batch_size = 32
+epochs = 100
 folds = 5
 smooth = 1.
+dropout = 0.
 
 
 def dice_coef(y_true, y_pred):
@@ -38,22 +40,22 @@ def get_unet():
     conv1 = Convolution2D(32, 3, 3, activation='relu', border_mode='same', init='he_normal')(inputs)
     conv1 = Convolution2D(32, 3, 3, activation='relu', border_mode='same', init='he_normal')(conv1)
     pool1 = MaxPooling2D(pool_size=(2, 2))(conv1)
-    d1 = Dropout(0.05)(pool1)
+    d1 = Dropout(dropout)(pool1)
 
     conv2 = Convolution2D(64, 3, 3, activation='relu', border_mode='same', init='he_normal')(pool1)
     conv2 = Convolution2D(64, 3, 3, activation='relu', border_mode='same', init='he_normal')(conv2)
     pool2 = MaxPooling2D(pool_size=(2, 2))(conv2)
-    d2 = Dropout(0.05)(pool2)
+    d2 = Dropout(dropout)(pool2)
 
     conv3 = Convolution2D(128, 3, 3, activation='relu', border_mode='same', init='he_normal')(pool2)
     conv3 = Convolution2D(128, 3, 3, activation='relu', border_mode='same', init='he_normal')(conv3)
     pool3 = MaxPooling2D(pool_size=(2, 2))(conv3)
-    d3 = Dropout(0.05)(pool3)
+    d3 = Dropout(dropout)(pool3)
 
     conv4 = Convolution2D(256, 3, 3, activation='relu', border_mode='same', init='he_normal')(pool3)
     conv4 = Convolution2D(256, 3, 3, activation='relu', border_mode='same', init='he_normal')(conv4)
     pool4 = MaxPooling2D(pool_size=(2, 2))(conv4)
-    d4 = Dropout(0.05)(pool4)
+    d4 = Dropout(dropout)(pool4)
 
     conv5 = Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal')(pool4)
     conv5 = Convolution2D(512, 3, 3, activation='relu', border_mode='same', init='he_normal')(conv5)
@@ -78,7 +80,7 @@ def get_unet():
 
     model = Model(input=inputs, output=conv10)
 
-    model.compile(optimizer=Adam(lr=1e-5), loss=dice_coef_loss, metrics=[dice_coef])
+    model.compile(optimizer=sgd(lr=1e-5,momentum=0.95), loss=dice_coef_loss, metrics=[dice_coef])
 
     return model
 
@@ -133,7 +135,7 @@ def run_cross_validation(nfolds=5):
         print('Split valid: ', len(X_valid), len(Y_valid))
 
         callbacks = [
-            EarlyStopping(monitor='val_loss', patience=10, verbose=0),
+            EarlyStopping(monitor='val_loss', patience=20, verbose=0),
             ModelCheckpoint('unet.' + str(num_fold) + '.hdf5', monitor='loss', save_best_only=True)
         ]
 
