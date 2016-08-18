@@ -12,7 +12,7 @@ image_rows = 420
 image_cols = 580
 
 
-augment_extra = 0
+augment_extra = 2
 
 def create_train_data():
     train_data_path = os.path.join(data_path, 'train')
