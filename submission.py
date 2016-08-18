@@ -6,13 +6,13 @@ from data import image_cols, image_rows
 
 
 ### turn 0...1 logistic into a large-enough mask
-def prep(img, threshold=0.99, minsize=1):
+def prep(img, threshold=0.75, minsize=0.015):
     img = img.astype('float32')
     img = cv2.threshold(img, threshold, 1., cv2.THRESH_BINARY)[1].astype(np.uint8)
     img = cv2.resize(img, (image_cols, image_rows), interpolation=cv2.INTER_CUBIC)
     x = img.transpose().flatten()
     y = np.where(x > 0)[0]
-    if len(y) < minsize:  # consider as empty
+    if len(y) < minsize*image_cols*image_rows:  # consider as empty
         img *= 0
     return img
 
@@ -46,8 +46,8 @@ def calibrate():
     print(act.shape)
     score = 0
     total = act.shape[0]
-    for thresh in [0.4,0.5,0.6,0.8,0.9,0.95,0.99]:
-        for minsize in [1]:
+    for thresh in [0.5]:
+        for minsize in [0.001,0.01,0.02]:
             print("thresh: ", thresh)
             print("minsize: ", minsize)
             for i in range(total):
@@ -64,7 +64,7 @@ def calibrate():
 def submission():
     from data import load_test_data
     imgs_test, imgs_id_test = load_test_data()
-    imgs_test = np.load('8aed72a6018f27a591aef9f327da3b36f37dde67/imgs_mask_test.npy')
+    imgs_test = np.load('imgs_mask_test.npy')
 
     argsort = np.argsort(imgs_id_test)
     imgs_id_test = imgs_id_test[argsort]
