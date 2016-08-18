@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import os
 import numpy as np
+from augment import elastic_transform
 
 import cv2
 
@@ -11,10 +12,12 @@ image_rows = 420
 image_cols = 580
 
 
+augment_extra = 2
+
 def create_train_data():
     train_data_path = os.path.join(data_path, 'train')
     images = os.listdir(train_data_path)
-    total = len(images) / 2
+    total = len(images) / 2 * (1+augment_extra)
 
     imgs = np.ndarray((total, 1, image_rows, image_cols), dtype=np.uint8)
     imgs_mask = np.ndarray((total, 1, image_rows, image_cols), dtype=np.uint8)
@@ -30,11 +33,20 @@ def create_train_data():
         img = cv2.imread(os.path.join(train_data_path, image_name), cv2.IMREAD_GRAYSCALE)
         img_mask = cv2.imread(os.path.join(train_data_path, image_mask_name), cv2.IMREAD_GRAYSCALE)
 
-        img = np.array([img])
-        img_mask = np.array([img_mask])
 
-        imgs[i] = img
-        imgs_mask[i] = img_mask
+        npimg = np.array([img])
+        npimg_mask = np.array([img_mask])
+
+        imgs[i] = npimg
+        imgs_mask[i] = npimg_mask
+
+        for j in range(0,augment_extra):
+            i += 1
+            random_state = np.random.RandomState(i)
+            im_merge = np.concatenate((img[...,None], img_mask[...,None]), axis=2)
+            im_merge_t = elastic_transform(im_merge, im_merge.shape[1] * 2, im_merge.shape[1] * 0.08, im_merge.shape[1] * 0.08)
+            imgs[i] = np.array([im_merge_t[...,0]])
+            imgs_mask[i] = np.array([im_merge_t[...,1]])
 
         if i % 100 == 0:
             print('Done: {0}/{1} images'.format(i, total))
