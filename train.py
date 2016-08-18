@@ -14,12 +14,11 @@ from keras import backend as K
 
 from data import load_train_data, load_test_data
 
-img_rows = 64 #160
-img_cols = 80 #200
-batch_size = 32
-epochs = 50
+img_rows = 64*1
+img_cols = 80*1
+batch_size = 64
+epochs = 20
 folds = 5
-
 smooth = 1.
 
 
