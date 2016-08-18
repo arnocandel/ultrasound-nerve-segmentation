@@ -5,10 +5,15 @@ import cv2
 from data import image_cols, image_rows
 
 
-def prep(img):
+### turn 0...1 logistic into a large-enough mask
+def prep(img, threshold=0.99, minsize=1):
     img = img.astype('float32')
-    img = cv2.threshold(img, 0.5, 1., cv2.THRESH_BINARY)[1].astype(np.uint8)
+    img = cv2.threshold(img, threshold, 1., cv2.THRESH_BINARY)[1].astype(np.uint8)
     img = cv2.resize(img, (image_cols, image_rows), interpolation=cv2.INTER_CUBIC)
+    x = img.transpose().flatten()
+    y = np.where(x > 0)[0]
+    if len(y) < minsize:  # consider as empty
+        img *= 0
     return img
 
 
@@ -17,7 +22,7 @@ def run_length_enc(label):
     x = label.transpose().flatten()
     y = np.where(x > 0)[0]
     #print (len(y))
-    if len(y) < 4500:  # consider as empty
+    if len(y) == 0:  # consider as empty
         return ''
     z = np.where(np.diff(y) > 1)[0]
     start = np.insert(y[z+1], 0, y[0])
@@ -27,11 +32,39 @@ def run_length_enc(label):
     res = list(chain.from_iterable(res))
     return ' '.join([str(r) for r in res])
 
+def my_dice_coef(y_true, y_pred):
+    smooth = 1
+    y_true_f = y_true.flatten()
+    y_pred_f = y_pred.flatten()
+    intersection = np.sum(y_true_f * y_pred_f)
+    return (2. * intersection + smooth) / (np.sum(y_true_f) + np.sum(y_pred_f) + smooth)
+
+def calibrate():
+    pred = np.load('imgs_mask_train.pred.fold1.npy')
+    act  = np.load('imgs_mask_train.actual.fold1.npy')
+    print(pred.shape)
+    print(act.shape)
+    score = 0
+    total = act.shape[0]
+    for thresh in [0.4,0.5,0.6,0.8,0.9,0.95,0.99]:
+        for minsize in [1]:
+            print("thresh: ", thresh)
+            print("minsize: ", minsize)
+            for i in range(total):
+                pr = pred[i, 0]
+                pr = prep(pr,thresh,minsize)
+                ac  = act[i,0]
+                #ac  = prep(ac,thresh,minsize)
+#                print("mean pr: ", np.mean(pr))
+#                print("mean ac: ", np.mean(ac))
+                score += my_dice_coef(ac, pr)
+            score /= total
+            print("dice: ", score)
 
 def submission():
     from data import load_test_data
     imgs_test, imgs_id_test = load_test_data()
-    imgs_test = np.load('imgs_mask_test.npy')
+    imgs_test = np.load('8aed72a6018f27a591aef9f327da3b36f37dde67/imgs_mask_test.npy')
 
     argsort = np.argsort(imgs_id_test)
     imgs_id_test = imgs_id_test[argsort]
@@ -68,3 +101,4 @@ def submission():
 
 if __name__ == '__main__':
     submission()
+    #calibrate()

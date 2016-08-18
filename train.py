@@ -247,5 +247,5 @@ def merge_several_folds_mean(data, nfolds):
 
 
 if __name__ == '__main__':
-    run_cross_validation(folds)
-    #run_main_model()
+    #run_cross_validation(folds)
+    run_main_model()
